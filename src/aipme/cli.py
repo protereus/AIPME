@@ -11,6 +11,7 @@ from rich.console import Console
 from rich.table import Table
 
 from aipme import __version__
+from aipme.cloud_init import build_user_data
 from aipme.config import (
     DEFAULT_CONFIG_PATH,
     MANAGED_BY_LABEL,
@@ -21,6 +22,7 @@ from aipme.config import (
 )
 from aipme.errors import AipmeError
 from aipme.hetzner import HetznerClient, Server
+from aipme.probe import wait_for_http_ok
 
 app = typer.Typer(
     no_args_is_help=True,
@@ -91,7 +93,16 @@ def status() -> None:
 
 
 @app.command()
-def up(config_path: ConfigOption = DEFAULT_CONFIG_PATH) -> None:
+def up(
+    config_path: ConfigOption = DEFAULT_CONFIG_PATH,
+    wait: Annotated[
+        bool,
+        typer.Option(
+            "--wait/--no-wait",
+            help="Wait for Apache to answer on port 80 before returning.",
+        ),
+    ] = True,
+) -> None:
     """Create the server described by the configuration file."""
     with _reporting_errors():
         token = load_token()
@@ -117,6 +128,7 @@ def up(config_path: ConfigOption = DEFAULT_CONFIG_PATH) -> None:
                 image=config.server.image,
                 ssh_key_ids=[ssh_key.id],
                 labels=MANAGED_BY_LABEL,
+                user_data=build_user_data(),
             )
 
             # The API returned straight away; the server is still being built.
@@ -127,6 +139,18 @@ def up(config_path: ConfigOption = DEFAULT_CONFIG_PATH) -> None:
             server = client.find_server_by_name(config.server.name) or server
 
     _print_created(server)
+
+    if not wait or not server.ipv4:
+        return
+
+    # The machine exists, but cloud-init is still installing Docker and
+    # pulling the Apache image. Asking the server itself is the only
+    # trustworthy way to know the bootstrap worked.
+    url = f"http://{server.ipv4}/"
+    with _reporting_errors(), console.status(f"Waiting for Apache at {url}..."):
+        wait_for_http_ok(url)
+
+    console.print(f"Apache is serving at [bold]{url}[/bold]")
 
 
 @app.command()

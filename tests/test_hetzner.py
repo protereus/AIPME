@@ -182,14 +182,14 @@ def test_wait_for_action_returns_immediately_when_finished(client):
 
 
 @responses.activate
-def test_wait_for_action_polls_until_success(client, monkeypatch):
-    monkeypatch.setattr("aipme.hetzner.time.sleep", lambda _seconds: None)
+def test_wait_for_action_polls_until_success(client, fake_clock):
+    fake_clock("aipme.hetzner")
     responses.get(f"{ACTIONS_URL}/1", json={"action": _action(status="running")})
     responses.get(f"{ACTIONS_URL}/1", json={"action": _action(status="success")})
 
     finished = client.wait_for_action(
         Action.from_api(_action(status="running")),
-        poll_interval=0,
+        poll_interval=2,
     )
 
     assert finished.status == "success"
@@ -207,14 +207,16 @@ def test_wait_for_action_raises_on_action_error(client):
 
 
 @responses.activate
-def test_wait_for_action_times_out(client, monkeypatch):
-    monkeypatch.setattr("aipme.hetzner.time.sleep", lambda _seconds: None)
-    clock = iter([0.0, 0.0, 999.0])
-    monkeypatch.setattr("aipme.hetzner.time.monotonic", lambda: next(clock))
+def test_wait_for_action_times_out(client, fake_clock):
+    fake_clock("aipme.hetzner")
     responses.get(f"{ACTIONS_URL}/1", json={"action": _action(status="running")})
 
     with pytest.raises(HetznerError, match="Timed out"):
-        client.wait_for_action(Action.from_api(_action(status="running")), poll_interval=0)
+        client.wait_for_action(
+            Action.from_api(_action(status="running")),
+            timeout=10,
+            poll_interval=5,
+        )
 
 
 @responses.activate

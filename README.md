@@ -40,7 +40,9 @@ uv run --env-file .env aipme status   # show what is running
 uv run --env-file .env aipme down     # delete it again
 ```
 
-`up` is safe to re-run: if a server with that name already exists, it reports it and changes nothing.
+`up` is safe to re-run: if a server with that name already exists, it reports it and changes nothing. It waits for Apache to answer on port 80 before returning; pass `--no-wait` to skip that.
+
+The web server runs as a container named `aipme-web`, so on the server itself `docker logs aipme-web` and `docker restart aipme-web` are all you need. If the page never comes up, `cat /var/log/cloud-init-output.log` shows what first boot did.
 
 ## Architecture (planned)
 
@@ -61,7 +63,7 @@ uv run --env-file .env aipme down     # delete it again
 ## Roadmap
 
 - [x] Hetzner Cloud provisioning (create/destroy servers via API)
-- [ ] cloud-init bootstrap of Docker and Apache
+- [x] cloud-init bootstrap of Docker and Apache
 - [ ] Background CPU/memory monitoring job
 - [ ] Threshold-based ntfy push alerts
 - [ ] Configurable thresholds and polling interval

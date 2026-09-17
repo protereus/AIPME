@@ -129,7 +129,7 @@ def _page(servers):
 
 
 @responses.activate
-def test_up_creates_a_server(project):
+def test_up_creates_a_server_and_waits_for_apache(project):
     responses.get(SERVERS_URL, json=_page([]))  # name lookup: nothing yet
     responses.get(
         SSH_KEYS_URL, json={"ssh_keys": [{"id": 7, "name": "laptop", "fingerprint": "x"}]}
@@ -143,15 +143,59 @@ def test_up_creates_a_server(project):
         },
     )
     responses.get(SERVERS_URL, json=_page([SERVER]))  # refresh after creation
+    responses.get("http://203.0.113.10/", status=200)  # Apache answers
 
     result = runner.invoke(app, ["up", "--config", str(project)])
 
     assert result.exit_code == 0, result.output
     assert "Created" in result.output
     assert "ssh root@203.0.113.10" in result.output
+    assert "Apache is serving" in result.output
+
     body = json.loads(responses.calls[2].request.body)
     assert body["labels"] == {"managed-by": "aipme"}
     assert body["ssh_keys"] == [7]
+    # cloud-init does the configuring, so the server needs the document at birth.
+    assert body["user_data"].startswith("#cloud-config")
+    assert "docker.io" in body["user_data"]
+
+
+@responses.activate
+def test_up_no_wait_skips_the_web_check(project):
+    responses.get(SERVERS_URL, json=_page([]))
+    responses.get(SSH_KEYS_URL, json=EXISTING_KEY)
+    responses.post(
+        SERVERS_URL,
+        status=201,
+        json={"server": SERVER, "action": _finished_action(1, "create_server")["action"]},
+    )
+    responses.get(SERVERS_URL, json=_page([SERVER]))
+
+    result = runner.invoke(app, ["up", "--config", str(project), "--no-wait"])
+
+    assert result.exit_code == 0, result.output
+    assert "Apache is serving" not in result.output
+
+
+@responses.activate
+def test_up_reports_a_server_that_never_serves(project, fake_clock):
+    fake_clock("aipme.probe")
+    responses.get(SERVERS_URL, json=_page([]))
+    responses.get(SSH_KEYS_URL, json=EXISTING_KEY)
+    responses.post(
+        SERVERS_URL,
+        status=201,
+        json={"server": SERVER, "action": _finished_action(1, "create_server")["action"]},
+    )
+    responses.get(SERVERS_URL, json=_page([SERVER]))
+    responses.get("http://203.0.113.10/", status=503)
+
+    result = runner.invoke(app, ["up", "--config", str(project)])
+
+    assert result.exit_code == 1
+    # The server was created, so the output still shows it before the warning.
+    assert "Created" in result.output
+    assert "did not return HTTP 200" in result.output
 
 
 @responses.activate
@@ -167,8 +211,8 @@ def test_up_is_idempotent(project):
 
 
 @responses.activate
-def test_up_reports_a_failed_creation_action(project, monkeypatch):
-    monkeypatch.setattr("aipme.hetzner.time.sleep", lambda _seconds: None)
+def test_up_reports_a_failed_creation_action(project, fake_clock):
+    fake_clock("aipme.hetzner")
     responses.get(SERVERS_URL, json=_page([]))
     responses.get(
         SSH_KEYS_URL, json={"ssh_keys": [{"id": 7, "name": "laptop", "fingerprint": "x"}]}
