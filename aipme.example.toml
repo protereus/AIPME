@@ -1,0 +1,18 @@
+# Copy this file to aipme.toml and adjust the values.
+# aipme.toml is git-ignored, so your settings stay local.
+
+[server]
+name = "aipme-01"
+type = "cx23"                              # Hetzner server type
+location = "nbg1"                          # nbg1, fsn1, hel1, ...
+image = "ubuntu-24.04"
+ssh_public_key = "~/.ssh/id_ed25519.pub"   # uploaded to Hetzner so you can SSH in
+
+[monitor]
+cpu_threshold_percent = 85
+memory_threshold_percent = 90
+cooldown_minutes = 15                      # minimum gap between repeated alerts
+
+[ntfy]
+# Anyone who knows the topic name can read your alerts, so make it long and random.
+topic = "aipme-change-me-to-something-random"
