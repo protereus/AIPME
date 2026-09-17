@@ -29,6 +29,19 @@ The goal is a single, auditable command that takes you from "no server" to "serv
 | Web server | Apache |
 | Push alerts | [ntfy](https://ntfy.sh/) |
 
+## Usage
+
+```bash
+cp aipme.example.toml aipme.toml   # then edit the values
+cp .env.example .env               # then add your Hetzner API token
+
+uv run --env-file .env aipme up       # create the server
+uv run --env-file .env aipme status   # show what is running
+uv run --env-file .env aipme down     # delete it again
+```
+
+`up` is safe to re-run: if a server with that name already exists, it reports it and changes nothing.
+
 ## Architecture (planned)
 
 ```
@@ -47,12 +60,12 @@ The goal is a single, auditable command that takes you from "no server" to "serv
 
 ## Roadmap
 
-- [ ] Hetzner Cloud provisioning (create/destroy servers via API)
+- [x] Hetzner Cloud provisioning (create/destroy servers via API)
 - [ ] cloud-init bootstrap of Docker and Apache
 - [ ] Background CPU/memory monitoring job
 - [ ] Threshold-based ntfy push alerts
 - [ ] Configurable thresholds and polling interval
-- [ ] Teardown / cleanup command
+- [x] Teardown / cleanup command
 - [ ] Tests and CI
 
 ## Development
